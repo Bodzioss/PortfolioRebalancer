@@ -2,6 +2,7 @@
 
 public class Portfolio
 {
+    public Guid Id { get; set; } = Guid.NewGuid();
     public List<Asset> Assets { get; set; } = new List<Asset>();
 
     public decimal GetTotalValue()
