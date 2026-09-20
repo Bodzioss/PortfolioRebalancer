@@ -1,12 +1,18 @@
+using MediatR;
 using Microsoft.EntityFrameworkCore;
-using PortfolioRebalancer.Infrastructure;
+using PortfolioRebalancer.Application.Queries;
 using PortfolioRebalancer.Domain; 
+using PortfolioRebalancer.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql("Host=localhost;Port=5432;Database=PortfolioDb;Username=admin;Password=Password123!"));
+
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Program>());
+
+builder.Services.AddHostedService<PriceUpdaterBackgroundService>();
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -32,17 +38,17 @@ app.MapPost("/api/portfolios", async (Portfolio portfolio, AppDbContext db) =>
     return Results.Ok(portfolio.Id); 
 });
 
-app.MapPost("/api/portfolio/{id}/rebalance", async (Guid id, AppDbContext db) =>
+app.MapPost("/api/portfolio/{id}/rebalance", async (Guid id, IMediator mediator) =>
 {
-    var portfolio = await db.Portfolios
-            .Include(p => p.Assets)
-            .FirstOrDefaultAsync(p => p.Id == id);
+    var result = await mediator.Send(new GetPortfolioRebalanceQuery(id));
 
-    if (portfolio is null)
-        return Results.NotFound("Nie znaleziono portfela o takim ID.");
+    if(!result.Any())
+    {
+        return Results.NotFound("Nie znaleziono portfela o takim ID (lub portfel jest pusty).");
+    }
 
-    var assetsToFix = portfolio.GetAssetsToRebalance(0.05m);
-    return Results.Ok(assetsToFix);
+    return Results.Ok(result);
+});
 });
 
 app.Run();
